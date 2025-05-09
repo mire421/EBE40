@@ -1,104 +1,103 @@
-<script>
-  function autoFillPLZ() {
-    const ort = document.getElementById('ort').value.trim().toLowerCase();
-    const plzField = document.getElementById('plz');
-    const ortPlzMap = {
-      "stuttgart": "70173", "esslingen": "73728", "waiblingen": "71332", "ludwigsburg": "71634"
-    };
-    plzField.value = ortPlzMap[ort] || "";
+function generatePDF() {
+  const form = document.forms['ebeForm'];
+  const fields = [
+    'nachname', 'vorname', 'geschlecht', 'geburtsdatum', 'strasse', 'plz', 'ort',
+    'linie', 'haltestelle', 'pruefer', 'datum', 'uhrzeit', 'grund', 'zahlung'
+  ];
+  const data = {};
+  fields.forEach(id => data[id] = form[id].value);
+
+  const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+  const counterKey = 'ebe_counter_' + today;
+  const count = (localStorage.getItem(counterKey) || 0) * 1 + 1;
+  localStorage.setItem(counterKey, count);
+
+  const belegnummer = `EBE-${today}-${String(count).padStart(3, '0')}`;
+
+  // Skaliert von 80x185 auf 100x230 (25% größer)
+  const pdf = new jsPDF({ unit: 'mm', format: [100, 230] });
+
+  let y = 10;
+  const margin = 6.25; // vorher 5
+  const maxWidth = 87.5; // vorher 70
+
+  const scale = 1.25;
+
+  function addCenteredText(text, size = 10, bold = false, forceNoScale = false) {
+    const scaledSize = forceNoScale ? size : size * scale;
+    pdf.setFontSize(scaledSize);
+    pdf.setFont(undefined, bold ? 'bold' : 'normal');
+    const textWidth = pdf.getTextWidth(text);
+    const x = (100 - textWidth) / 2;
+    pdf.text(text, x, y);
+    y += scaledSize * 0.5 + 1.25;
   }
 
-  const { jsPDF } = window.jspdf;
-
-  function generatePDF() {
-    const form = document.forms['ebeForm'];
-    const data = {};
-    ['nachname','vorname','geschlecht','geburtsdatum','strasse','plz','ort','linie','haltestelle','pruefer','datum','uhrzeit','grund','zahlung'].forEach(id => {
-      data[id] = form[id].value;
-    });
-
-    const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const counterKey = 'ebe_counter_' + today;
-    const count = (localStorage.getItem(counterKey) || 0) * 1 + 1;
-    localStorage.setItem(counterKey, count);
-    const belegnummer = `EBE-${today}-${String(count).padStart(3, '0')}`;
-
-    const pdf = new jsPDF({ unit: 'mm', format: [80, 230] });
-    let y = 10;
-    const margin = 5;
-    const maxWidth = 70;
-
-    function addCenteredText(text, size = 11, bold = false, lineSpacing = 5) {
-      pdf.setFontSize(size);
-      pdf.setFont(undefined, bold ? 'bold' : 'normal');
-      const x = (80 - pdf.getTextWidth(text)) / 2;
-      pdf.text(text, x, y);
-      y += lineSpacing;
-    }
-
-    function addLeftText(text, size = 9, bold = false, lineSpacing = 4) {
-      pdf.setFontSize(size);
-      pdf.setFont(undefined, bold ? 'bold' : 'normal');
-      const lines = pdf.splitTextToSize(text, maxWidth);
-      pdf.text(lines, margin, y);
-      y += lines.length * lineSpacing;
-    }
-
-    function formatDate(input) {
-      if (!input) return '';
-      const [yyyy, mm, dd] = input.split('-');
-      return `${dd}.${mm}.${yyyy}`;
-    }
-
-    addCenteredText('Rechnung zur Fahrausweisprüfung', 10);
-    addCenteredText(belegnummer, 15, true);
-    addCenteredText('bei Rückfragen und Zahlungen angeben', 8, false);
-    y += 3;
-
-    addLeftText(`Nachname: ${data.nachname}`);
-    addLeftText(`Vorname: ${data.vorname}`);
-    if (data.geschlecht) addLeftText(`Geschlecht: ${data.geschlecht}`);
-    if (data.geburtsdatum) addLeftText(`Geburtsdatum: ${data.geburtsdatum}`);
-    if (data.strasse) addLeftText(`Straße, Haus-Nr.: ${data.strasse}`);
-    if (data.plz || data.ort) addLeftText(`PLZ, Wohnort: ${data.plz} ${data.ort}`);
-    if (data.linie) addLeftText(`Linie: ${data.linie}`);
-    if (data.haltestelle) addLeftText(`Prüfhaltestelle: ${data.haltestelle}`);
-    if (data.pruefer) addLeftText(`Prüfernummer: ${data.pruefer}`);
-    if (data.grund || data.datum || data.uhrzeit) {
-      addLeftText(`Beanstandung: ${data.grund} (${formatDate(data.datum)} ${data.uhrzeit})`);
-    }
-
-    addLeftText('Gemäß § 9 der gemeinsamen Beförderungsbedingungen im VVS beträgt unsere Forderung:');
-    addCenteredText('60,00 EUR', 15, true);
-    addCenteredText('zahlbar innerhalb von 14 Tagen', 9, true);
-    addLeftText(`Bereits gezahlt: ${parseFloat(data.zahlung).toFixed(2)} EUR`);
-
-    addLeftText('Es erfolgt in jedem Fall eine Prüfung, ob bereits Forderungen gegen Sie gerichtet wurden. Die Begleichung der Forderung ohne konkrete Zuordnung Ihrer Identität stellt keine Erfüllung dar. Das Fahren ohne gültigen Fahrausweis stellt eine Straftat gem. § 265a StGB dar. Es kann zu strafrechtlichen Konsequenzen kommen. Ihre Daten werden für die Bearbeitung des erhöhten Beförderungsentgeltes in Einklang mit dem Bundesdatenschutzgesetz erhoben und gespeichert.', 8, false, 3.8);
-
-    addCenteredText(`Gültig als Fahrschein am ${formatDate(data.datum)} bis Fahrtende`, 9, true);
-
-    addLeftText('Bankverbindung:', 9, true);
-    addLeftText('Deutsche Bank');
-    addLeftText('IBAN: DE1234567890');
-    addLeftText('BIC: ABC123');
-    addLeftText(`Verwendungszweck: ${belegnummer}`);
-
-    addLeftText('Kontakt:', 9, true);
-    addLeftText('Prüfdienst');
-    addLeftText('E-Mail: pruefdienst@abc.de');
-    addLeftText('Telefon: 0711 12345');
-
-    // Überlaufwarnung
-    if (y > 225) {
-      alert("Warnung: PDF-Inhalt ist zu lang – bitte Eingaben prüfen oder PDF-Höhe anpassen.");
-    }
-
-    pdf.save(`EBE_${data.nachname}_${data.vorname}_${belegnummer}.pdf`);
+  function addLeftText(text, size = 8, bold = false) {
+    const scaledSize = size * scale;
+    pdf.setFontSize(scaledSize);
+    pdf.setFont(undefined, bold ? 'bold' : 'normal');
+    const lines = pdf.splitTextToSize(text, maxWidth);
+    pdf.text(lines, margin, y);
+    y += lines.length * (scaledSize * 0.35 + 1.25);
   }
 
-  window.onload = function () {
-    const today = new Date();
-    document.getElementById('datum').value = today.toISOString().split('T')[0];
-    document.getElementById('uhrzeit').value = today.toTimeString().split(' ')[0].substring(0, 5);
-  };
-</script>
+  function formatDate(input) {
+    if (!input) return '';
+    const [yyyy, mm, dd] = input.split('-');
+    return `${dd}.${mm}.${yyyy}`;
+  }
+
+  // Kopfbereich
+  addCenteredText('Rechnung zur Fahrausweisprüfung', 8);
+  addCenteredText(belegnummer, 14, true);
+  addCenteredText('bei Rückfragen und Zahlungen angeben', 7);
+  y += 2 * scale;
+
+  // Fahrgastdaten
+  addLeftText(`Nachname: ${data.nachname}`);
+  addLeftText(`Vorname: ${data.vorname}`);
+  if (data.geschlecht) addLeftText(`Geschlecht: ${data.geschlecht}`);
+  if (data.geburtsdatum) addLeftText(`Geburtsdatum: ${data.geburtsdatum}`);
+  if (data.strasse) addLeftText(`Straße, Haus-Nr.: ${data.strasse}`);
+  if (data.plz || data.ort) addLeftText(`PLZ, Wohnort: ${data.plz} ${data.ort}`);
+  if (data.linie) addLeftText(`Linie: ${data.linie}`);
+  if (data.haltestelle) addLeftText(`Prüfhaltestelle: ${data.haltestelle}`);
+  if (data.pruefer) addLeftText(`Prüfernummer: ${data.pruefer}`);
+  if (data.grund || data.datum || data.uhrzeit) {
+    addLeftText(`Beanstandung: ${data.grund} (${formatDate(data.datum)} ${data.uhrzeit})`);
+  }
+  y += 2 * scale;
+
+  // Forderung
+  addLeftText('Gemäß § 9 der gemeinsamen Beförderungsbedingungen im VVS beträgt unsere Forderung:');
+  addCenteredText('60,00 EUR', 14, true);
+  addCenteredText('zahlbar innerhalb von 14 Tagen', 8, true);
+  addLeftText(`Bereits gezahlt: ${parseFloat(data.zahlung).toFixed(2)} EUR`);
+  y += 2 * scale;
+
+  // Rechtshinweise
+  addLeftText('Es erfolgt in jedem Fall eine Prüfung, ob bereits Forderungen gegen Sie gerichtet wurden. Die Begleichung der Forderung ohne konkrete Zuordnung Ihrer Identität stellt keine Erfüllung dar. Das Fahren ohne gültigen Fahrausweis stellt eine Straftat gem. § 265a StGB dar. Es kann zu strafrechtlichen Konsequenzen kommen. Ihre Daten werden für die Bearbeitung des erhöhten Beförderungsentgeltes in Einklang mit dem Bundesdatenschutzgesetz erhoben und gespeichert.', 6);
+  y += 2 * scale;
+
+  // Gültigkeitshinweis – nicht skalieren, damit es auf eine Zeile passt
+  addCenteredText(`Gültig als Fahrschein am ${formatDate(data.datum)} bis Fahrtende`, 9, true, true);
+  y += 2 * scale;
+
+  // Zahlungsinformationen
+  addLeftText('Bankverbindung:', 7, true);
+  addLeftText('Deutsche Bank');
+  addLeftText('IBAN: DE1234567890');
+  addLeftText('BIC: ABC123');
+  addLeftText(`Verwendungszweck: ${belegnummer}`);
+  y += 2 * scale;
+
+  // Kontaktinformationen
+  addLeftText('Kontakt:', 7, true);
+  addLeftText('Prüfdienst');
+  addLeftText('E-Mail: prüfdienst@abc.de');
+  addLeftText('Telefon: 0711 12345');
+
+  const filename = `EBE_${data.nachname}_${data.vorname}_${belegnummer}.pdf`;
+  pdf.save(filename);
+}
