@@ -90,7 +90,7 @@
       localStorage.setItem(counterKey, count);
       const belegnummer = `EBE-${today}-${String(count).padStart(3, '0')}`;
 
-      const pdf = new jsPDF({ unit: 'mm', format: [80, 220] }); // PDF-Höhe jetzt 240 mm
+      const pdf = new jsPDF({ unit: 'mm', format: [80, 230] }); // PDF-Höhe jetzt 240 mm
       let y = 10;
       const margin = 5;
       const maxWidth = 70;
